@@ -1,0 +1,36 @@
+# Ejecutables compilados
+*.exe
+*.obj
+*.o
+*.a
+*.lib
+*.dll
+
+# Archivos de debug y build de MSVC / MinGW
+*.pdb
+*.ilk
+*.map
+*.exp
+*.d
+
+# Directorios de build
+build/
+Release/
+Debug/
+x64/
+x86/
+
+# SDL2 (libreria, no codigo fuente propio)
+SDL2/
+SDL2.dll
+
+# Archivos de volcado de escaneo (generados en runtime)
+GeniusScanne/dump_base.txt
+GeniusScanne/dump_*.txt
+
+# Visual Studio Code
+.vscode/
+
+# Archivos temporales de Windows
+Thumbs.db
+desktop.ini
