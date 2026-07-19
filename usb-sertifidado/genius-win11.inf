@@ -1,0 +1,78 @@
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = Camera
+ClassGuid   = {ca3e7ab9-b4c3-4ae6-8251-579ef933890f}
+Provider    = %ManufacturerName%
+CatalogFile = genius-win11.cat
+DriverVer   = 07/17/2026,1.0.0.0
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 12
+
+[Manufacturer]
+%ManufacturerName% = DeviceList, NTamd64
+
+[DeviceList.NTamd64]
+%DeviceNameVideo% = Camera_Device_Video, USB\VID_0C45&PID_60B0&MI_00
+%DeviceNameAudio% = Camera_Device_Audio, USB\VID_0C45&PID_60B0&MI_01
+
+; --- Instalación Video ---
+[Camera_Device_Video.NT]
+Include = winusb.inf
+Needs   = WINUSB.NT
+
+[Camera_Device_Video.NT.Services]
+Include = winusb.inf
+Needs   = WINUSB.NT.Services
+AddService = WinUSB, 0x00000002, WinUSB_Install_Service
+
+[Camera_Device_Video.NT.HW]
+AddReg = Dev_AddReg_Video, Power_AddReg, PnP_AddReg, Device_Characteristics_AddReg
+
+; --- Instalación Audio ---
+[Camera_Device_Audio.NT]
+Include = winusb.inf
+Needs   = WINUSB.NT
+
+[Camera_Device_Audio.NT.Services]
+Include = winusb.inf
+Needs   = WINUSB.NT.Services
+AddService = WinUSB, 0x00000002, WinUSB_Install_Service
+
+[Camera_Device_Audio.NT.HW]
+AddReg = Dev_AddReg_Audio, Power_AddReg, PnP_AddReg, Device_Characteristics_AddReg
+
+; --- Configuración Común ---
+[WinUSB_Install_Service]
+DisplayName    = "Genius VideoCam WinUSB Service"
+ServiceType    = 1
+StartType      = 3
+ErrorControl   = 1
+ServiceBinary  = %12%\WinUSB.sys
+
+[Dev_AddReg_Video]
+HKR,,DeviceInterfaceGUIDs,0x10000,"{4E1B39D5-61A6-47A6-9E92-3B48D2A12345}" 
+HKR,,Security,,"D:P(A;;GA;;;BA)(A;;GA;;;SY)(A;;GRGWGX;;;BU)"
+
+[Dev_AddReg_Audio]
+HKR,,DeviceInterfaceGUIDs,0x10000,"{9F8B2C41-8D3A-4F72-A1B9-7C5D6E123456}"
+HKR,,Security,,"D:P(A;;GA;;;BA)(A;;GA;;;SY)(A;;GRGWGX;;;BU)"
+
+; --- Tweak Profesional: Características de Dispositivo ---
+[Device_Characteristics_AddReg]
+; 0x00000180 = FILE_DEVICE_SECURE_OPEN | FILE_REMOVABLE_MEDIA (configuración estándar USB)
+HKR,,DeviceCharacteristics,0x00010001,0x00000180
+
+[PnP_AddReg]
+HKR,,SurpriseRemovalOK,0x00010001,1
+HKR,,RemovalPolicy,0x00010001,1
+
+[Power_AddReg]
+HKR,,DeviceSelectiveSuspended,0x00010001,1
+HKR,,SelectiveSuspendEnabled,0x00010001,1
+
+[Strings]
+ManufacturerName = "Jhoan Gavidia"
+DeviceNameVideo  = "Genius VideoCam Look - Video Stream"
+DeviceNameAudio  = "Genius VideoCam Look - Audio Stream"
