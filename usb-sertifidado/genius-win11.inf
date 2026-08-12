@@ -13,193 +13,38 @@ DefaultDestDir = 12
 [Manufacturer]
 %ManufacturerName% = DeviceList, NTamd64
 
+; Solo MI_00 (Video/Control) se gestiona aquí con WinUSB.
+; MI_01 (Audio) es gestionado automáticamente por Windows con usbaudio.sys.
 [DeviceList.NTamd64]
-%DeviceName% = Camera_Device, USB\VID_0C45&PID_60B0
+%DeviceName_Video% = Video_Device, USB\VID_0C45&PID_60B0&MI_00
 
-[Camera_Device]
-Include = usbvideo.inf
-Needs   = USBVideo.Registration
-
-# --- AÑADE ESTO ---
-[Camera_Device.HW]
-AddReg = Camera_Device.AddReg.HW
-
-[Camera_Device.AddReg.HW]
-HKR,,DeviceType,0x10001,0x00000003
-HKR,,Security,, "D:P(A;;GA;;;BA)(A;;GA;;;SY)(A;;GRGWGX;;;BU)"
-# ------------------
-
-[Camera_Device.Services]
-AddService = usbvideo, 0x00000002, USBVideo_Service_Inst
-
-[USBVideo_Service_Inst]
-DisplayName    = "USB Video Device Service"
-ServiceType    = 1
-StartType      = 3
-ErrorControl   = 1
-ServiceBinary  = %12%\usbvideo.sys
-
-[Strings]
-ManufacturerName = "GeniusOwner"
-DeviceName       = "Genius VideoCam Look"
-
-
-USB\VID_0C45&PID_60B0&MI_00\6&39DC5302&3&0000
-
-
-cat -1
-
-& "C:\Program Files (x86)\Windows Kits\10\bin\10.0.28000.0\x86\Inf2Cat.exe" /driver:"." /os:10_X64
-
-cer-1
-
-New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=GeniusCameraDriver" -CertStoreLocation "Cert:\CurrentUser\My"
-
-firma cat 
-
-& "C:\Program Files (x86)\Windows Kits\10\bin\10.0.28000.0\x86\signtool.exe" sign /n "GeniusCameraDriver" /fd SHA256 genius-win11.cat
-
-1. Exportar el certificado a un archivo físico (.cer) para que lo tengas en tu carpeta:
-
-Export-Certificate -Cert "Cert:\CurrentUser\My\335C98310B27098BF3E50D5F4CDE6F9756A9E2BB" -FilePath "genius.cer"
-
-2. Inyectar el certificado en las Raíces de Confianza del sistema (requiere que la consola esté abierta como Administrador)
-
-Import-Certificate -FilePath "genius.cer" -CertStoreLocation "Cert:\LocalMachine\Root"
-
-Si ya lo habías importado, asegúrate de que sea en LocalMachine y no en CurrentUser. Ejecuta esto en PowerShell (como Administrador):
-
-PowerShell
-# Esto importa tu certificado al almacén de confianza del SISTEMA (no solo del usuario)
-Import-Certificate -FilePath "genius.cer" -CertStoreLocation "Cert:\LocalMachine\Root"
-
-
-
-/////////////////////////////////////////////////////////////////////////////
-
-1. Primero, lista los certificados para ver cuáles tienes
-Ejecuta esto para ver todos los que se llaman "GeniusCameraDriver" y sus huellas (Thumbprints):
-
-PowerShell
-Get-ChildItem -Path "Cert:\CurrentUser\My" | Where-Object {$_.Subject -eq "CN=GeniusCameraDriver"} | Select-Object Subject, Thumbprint, NotAfter
-Esto te mostrará una lista con el Thumbprint (la huella única) de cada uno. Anota el Thumbprint del certificado que sí funciona (el que acabas de usar con éxito).
-
-Remove-Item -Path "Cert:\CurrentUser\My\92A861E6FF65558CB876EE3AEC2A229197818923"
-
-
-Borrar los duplicados (manteniendo el que funciona)
-Una vez que tengas claro cuál es el bueno (el que quieres conservar), ejecuta este comando reemplazando THUMBPRINT_BUENO por el código del certificado que SÍ sirve.
-
-Este comando borrará todos los que se llamen "GeniusCameraDriver" excepto el que tú indiques:
-
-PowerShell
-Get-ChildItem -Path "Cert:\CurrentUser\My" | Where-Object {$_.Subject -eq "CN=GeniusCameraDriver
-
-
-//////////////////////////////////////
-
-
-
-Flujo de Ejecución Paso a Paso
-1. Generar el archivo de catálogo (.cat)
-Este paso crea el "mapa" de tu driver. Si cambias cualquier cosa en el archivo .inf, debes ejecutar esto de nuevo.
-
-PowerShell
-& "C:\Program Files (x86)\Windows Kits\10\bin\10.0.28000.0\x86\Inf2Cat.exe" /driver:"." /os:10_X64
-2. Firmar el catálogo (.cat)
-Aquí aplicas tu firma digital al catálogo generado. Esto le dice a Windows: "Yo, el desarrollador, garantizo la integridad de este archivo".
-
-PowerShell
-& "C:\Program Files (x86)\Windows Kits\10\bin\10.0.28000.0\x86\signtool.exe" sign /n "GeniusCameraDriver" /fd SHA256 genius-win11.cat
-3. Preparar la confianza del sistema (Solo la primera vez)
-Si ya lo hiciste, omite esto. Si no, hazlo para que el sistema deje de dar advertencias de "no comprobado".
-
-Exportar:
-
-PowerShell
-Export-Certificate -Cert "Cert:\CurrentUser\My\01C4A75DDAFEF218731246C4FF36E0C466BC47AD" -FilePath "genius.cer"
-Importar (Confianza total):
-
-PowerShell
-Import-Certificate -FilePath "genius.cer" -CertStoreLocation "Cert:\LocalMachine\Root"
-4. Instalación del Driver
-No es un comando de consola, sino el proceso de actualización del hardware:
-
-Abre el Administrador de dispositivos (devmgmt.msc).
-
-Busca tu dispositivo (con el triángulo amarillo).
-
-Clic derecho > Actualizar controlador.
-
-Selecciona "Examinar mi PC en busca de controladores".
-
-Selecciona la carpeta actual.
-
-Resumen de validación rápida
-Si alguna vez el driver falla o te da error de "Firma inválida", sigue siempre este orden lógico:
-
-¿Modifiqué el .inf? → Entonces ejecuta Paso 1 (Generar Catálogo).
-
-¿Generé un catálogo nuevo? → Entonces ejecuta Paso 2 (Firmar).
-
-¿El driver sigue fallando? → Revisa si el dispositivo sigue en el Administrador de dispositivos. Si está ahí, haz clic derecho y elige "Actualizar controlador" para que fuerce la relectura del .cat recién firmado.
-
-
-
-
-////////////////////////////////////////////
-
-
-archivo .inf platilla 
-
-[Version]
-Signature   = "$WINDOWS NT$"
-Class       = Camera
-ClassGuid   = {ca3e7ab9-b4c3-4ae6-8251-579ef933890f}
-Provider    = %ManufacturerName%
-CatalogFile = genius-win11.cat
-DriverVer   = 07/17/2026,1.0.0.0
-PnpLockdown = 1
-
-[DestinationDirs]
-DefaultDestDir = 12
-
-[Manufacturer]
-%ManufacturerName% = DeviceList, NTamd64
-
-[DeviceList.NTamd64]
-%DeviceName% = Camera_Device, USB\VID_0C45&PID_60B0
-
-[Camera_Device]
+[Video_Device]
 Include = winusb.inf
 Needs   = WINUSB.NT
 
-[Camera_Device.Services]
+[Video_Device.Services]
 Include = winusb.inf
 Needs   = WINUSB.NT.Services
 AddService = WinUSB, 0x00000002, WinUSB_Install_Service
 
 [WinUSB_Install_Service]
-DisplayName    = "Genius VideoCam Custom WinUSB Driver"
+DisplayName    = "Genius VideoCam WinUSB Driver"
 ServiceType    = 1
 StartType      = 3
 ErrorControl   = 1
 ServiceBinary  = %12%\WinUSB.sys
 
-[Camera_Device.HW]
+[Video_Device.HW]
 AddReg = Dev_AddReg, Power_AddReg
 
 [Dev_AddReg]
-; GUID para tu acceso en C++
 HKR,,DeviceInterfaceGUIDs,0x10000,"{15B22409-5FEF-4481-9EFD-6F4E85882512}"
-; Permisos de acceso: Permite que usuarios administradores y sistema tengan control total
 HKR,,Security,,"D:P(A;;GA;;;BA)(A;;GA;;;SY)(A;;GRGWGX;;;BU)"
 
 [Power_AddReg]
-; Habilita la suspensión selectiva (evita que el puerto se cuelgue al volver de reposo)
 HKR,,DeviceSelectiveSuspended,0x00010001,1
 HKR,,SelectiveSuspendEnabled,0x00010001,1
 
 [Strings]
-ManufacturerName = "Jhoan Gavidia"
-DeviceName       = "Genius VideoCam Look"  
+ManufacturerName  = "Jhoan Gavidia"
+DeviceName_Video  = "Genius VideoCam Look - Video Stream"
