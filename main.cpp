@@ -4,6 +4,7 @@
 #include "device_connector.h"
 #include "sensor_detector.h"
 #include "sensor_i2c.h"
+#include "sensor_init.h"
 
 int main() {
     SetConsoleOutputCP(CP_UTF8);
@@ -16,7 +17,7 @@ int main() {
         return -1;
     }
 
-    // 1. Verificación del procesador bridge Sonix (ASIC_ID)
+    // 1. Verificación del procesador backend Sonix (ASIC_ID)
     auto asic_id = bridge.send_register_read(Genius::SN9C102::Regs::ASIC_ID);
     if (asic_id) {
         std::cout << "[OK] ASIC_ID = 0x" << std::hex << std::setw(2)
@@ -24,14 +25,20 @@ int main() {
         std::cout << (*asic_id == 0x10 ? " → Sonix SN9C102 confirmado\n" : "\n");
     }
 
-    // 2. Detección rápida del fabricante del sensor (vía SLAVE_ID)
+    // 2. Detección del sensor CMOS (vía SLAVE_ID)
     auto sensor_info = Genius::SensorDetector::detect(bridge);
     if (sensor_info) {
         Genius::SensorDetector::print_report(*sensor_info);
     }
 
-    // 3. Identificación exacta: leer PID/VER directamente del sensor vía I2C
+    // 3. Diagnóstico e identificación directa I2C
     Genius::SensorI2C::identify_sensor(bridge);
+
+    // 4. Inicializar el sensor SOI968 / OV7660 y activar transmisión de vídeo
+    if (!Genius::SensorInit::initialize(bridge)) {
+        std::cout << "[ERROR] Fallo en el proceso de inicialización del sensor.\n";
+        return -1;
+    }
 
     return 0;
 }
