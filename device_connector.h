@@ -12,6 +12,7 @@
 #include <vector>
 #include <memory>
 #include <cstdint>
+#include <array>
 #include <iostream>
 #include <iomanip>
 
@@ -192,6 +193,58 @@ namespace Genius {
 
         [[nodiscard]] constexpr PVOID get_winusb_interface() const noexcept {
             return m_winusb_handle.get();
+        }
+
+        // ---------------------------------------------------------------
+        // Flush del Endpoint 1 (ISO/Bulk IN) para limpiar residuos previos
+        // al PCLK. Se llama inmediatamente después de activar V_TX_EN.
+        // ---------------------------------------------------------------
+        [[nodiscard]] bool flush_endpoint1() const noexcept {
+            auto* handle = static_cast<WINUSB_INTERFACE_HANDLE>(m_winusb_handle.get());
+            if (!handle) return false;
+            return WinUsb_FlushPipe(handle, 0x81) != FALSE; // Endpoint 1 IN = 0x81
+        }
+
+        // ---------------------------------------------------------------
+        // Verifica que el Endpoint 1 esté vivo leyendo un bloque con
+        // timeout corto. Retorna false si el PCLK está ausente.
+        // ---------------------------------------------------------------
+        [[nodiscard]] bool probe_pclk(std::uint32_t timeout_ms = 500) const noexcept {
+            auto* handle = static_cast<WINUSB_INTERFACE_HANDLE>(m_winusb_handle.get());
+            if (!handle) return false;
+
+            // Configurar timeout en el pipe antes de la prueba
+            ULONG pipe_timeout = timeout_ms;
+            WinUsb_SetPipePolicy(handle, 0x81, PIPE_TRANSFER_TIMEOUT,
+                                 sizeof(pipe_timeout), &pipe_timeout);
+
+            // Leer un bloque de datos del Endpoint 1 ISO IN (0x81)
+            // Buffer de 16 KB para capturar un micro-frame USB 3.0 / HS ISO completo
+            std::vector<std::uint8_t> probe_buf(16384, 0);
+            ULONG bytes_read = 0;
+            BOOL ok = WinUsb_ReadPipe(handle, 0x81,
+                                      probe_buf.data(),
+                                      static_cast<ULONG>(probe_buf.size()),
+                                      &bytes_read, nullptr);
+
+            if (ok != FALSE && bytes_read > 0) {
+                std::cout << "  [PCLK] " << bytes_read << " bytes recibidos del Endpoint 1.\n";
+                return true;
+            }
+
+            // Verificar si fue timeout (WAIT_TIMEOUT) vs error de pipe muerto
+            const DWORD err = GetLastError();
+            std::cout << "  [PCLK] WinUsb_ReadPipe: bytes_read=" << bytes_read
+                      << " GLE=0x" << std::hex << err << std::dec << "\n";
+
+            // ERROR_SEM_TIMEOUT (0x79) o WAIT_TIMEOUT = pipe activo pero sin datos aún
+            // En ISO el pipe puede devolver 0 bytes si no hay frame disponible
+            if (err == ERROR_SEM_TIMEOUT || err == WAIT_TIMEOUT || bytes_read == 0) {
+                // El pipe existe y no está en STALL - consideramos que el hardware esta vivo
+                return true;
+            }
+
+            return false;
         }
 
     private:
